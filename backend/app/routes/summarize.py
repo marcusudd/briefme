@@ -24,6 +24,7 @@ async def summarize(payload: SummarizeRequest) -> SummarizeResponse:
             payload.focusPrompt,
             payload.title,
             payload.outputLength,
+            payload.detailLevel,
         )
         return SummarizeResponse(summary=summary)
     except AuthenticationError as err:

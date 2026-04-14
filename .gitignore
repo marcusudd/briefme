@@ -35,6 +35,9 @@ yarn-error.log*
 !.env.local.example
 .venv/
 
+# optional YouTube Netscape cookies (never commit)
+backend/youtube_cookies.txt
+
 # python
 __pycache__/
 *.pyc

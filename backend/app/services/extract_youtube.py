@@ -1,6 +1,7 @@
 import re
 import json
 import os
+from pathlib import Path
 from http.cookiejar import MozillaCookieJar
 from html import unescape
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -22,11 +23,22 @@ def _normalize_caption_text(text: str) -> str:
     return re.sub(r"\s+", " ", unescape(text)).strip()
 
 
+def _resolve_youtube_cookies_path() -> str | None:
+    """Env path wins; else `backend/youtube_cookies.txt` if present (no env needed)."""
+    env_path = os.getenv("YOUTUBE_COOKIES_PATH", "").strip()
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    # backend/app/services/extract_youtube.py -> backend/
+    backend_dir = Path(__file__).resolve().parent.parent.parent
+    default = backend_dir / "youtube_cookies.txt"
+    if default.is_file():
+        return str(default)
+    return None
+
+
 def _youtube_cookies():
-    cookies_path = os.getenv("YOUTUBE_COOKIES_PATH", "").strip()
+    cookies_path = _resolve_youtube_cookies_path()
     if not cookies_path:
-        return None
-    if not os.path.exists(cookies_path):
         return None
     try:
         jar = MozillaCookieJar(cookies_path)
@@ -34,6 +46,22 @@ def _youtube_cookies():
         return jar
     except Exception:
         return None
+
+
+def _youtube_cookies_dict() -> dict[str, str] | None:
+    """Flat dict for httpx: youtube + google session cookies from Netscape export."""
+    jar = _youtube_cookies()
+    if not jar:
+        return None
+    out: dict[str, str] = {}
+    for cookie in jar:
+        domain = (cookie.domain or "").lstrip(".").lower()
+        if "youtube" not in domain and "google.com" not in domain:
+            continue
+        if cookie.name and cookie.value is not None:
+            # Last wins on duplicate names (rare); fine for session cookies.
+            out[cookie.name] = cookie.value
+    return out or None
 
 
 def _normalize_segments_text(segments: list[dict]) -> str:
@@ -88,25 +116,79 @@ async def _fetch_watch_page(video_id: str) -> str:
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-        )
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
     }
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+    cookies = _youtube_cookies_dict()
+    async with httpx.AsyncClient(
+        timeout=20.0, follow_redirects=True, cookies=cookies
+    ) as client:
         res = await client.get(url, headers=headers)
     if res.status_code != 200:
         raise ValueError(f"Failed to fetch YouTube watch page (HTTP {res.status_code}).")
     return res.text
 
 
-def _extract_caption_base_url_from_watch_html(watch_html: str) -> str:
-    match = re.search(
-        r"ytInitialPlayerResponse\s*=\s*(\{.*?\});",
-        watch_html,
-        flags=re.DOTALL,
-    )
-    if not match:
+def _balanced_json_from(html: str, brace_start: int) -> str | None:
+    """Parse one JSON object starting at brace_start (handles strings with `{`)."""
+    depth = 0
+    in_string: str | None = None
+    escape = False
+    i = brace_start
+    while i < len(html):
+        ch = html[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == in_string:
+                in_string = None
+            i += 1
+            continue
+        if ch in ('"', "'"):
+            in_string = ch
+            i += 1
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return html[brace_start : i + 1]
+        i += 1
+    return None
+
+
+def _extract_yt_initial_player_response_json(watch_html: str) -> dict:
+    """YouTube embeds a large JSON blob; non-greedy regex breaks — use brace matching."""
+    patterns = [
+        r"ytInitialPlayerResponse\s*=\s*",
+        r"var\s+ytInitialPlayerResponse\s*=\s*",
+    ]
+    brace_start: int | None = None
+    for pat in patterns:
+        m = re.search(pat, watch_html)
+        if m:
+            j = watch_html.find("{", m.end())
+            if j != -1:
+                brace_start = j
+                break
+    if brace_start is None:
         raise ValueError("Could not locate YouTube player response in watch page HTML.")
 
-    player_response = json.loads(match.group(1))
+    json_blob = _balanced_json_from(watch_html, brace_start)
+    if not json_blob:
+        raise ValueError("YouTube player response JSON appears truncated in HTML.")
+
+    try:
+        return json.loads(json_blob)
+    except json.JSONDecodeError as err:
+        raise ValueError("YouTube player response JSON could not be parsed.") from err
+
+
+def _extract_caption_base_url_from_watch_html(watch_html: str) -> str:
+    player_response = _extract_yt_initial_player_response_json(watch_html)
     tracks = (
         player_response.get("captions", {})
         .get("playerCaptionsTracklistRenderer", {})
@@ -133,7 +215,10 @@ def _set_query_params(url: str, **params: str) -> str:
 
 
 async def _fetch_caption_text(url: str) -> str:
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+    cookies = _youtube_cookies_dict()
+    async with httpx.AsyncClient(
+        timeout=20.0, follow_redirects=True, cookies=cookies
+    ) as client:
         res = await client.get(url)
     if res.status_code != 200:
         raise ValueError(f"Failed to fetch YouTube caption track (HTTP {res.status_code}).")
@@ -250,6 +335,12 @@ def extract_video_id(url: str) -> str:
 
 async def fetch_captions(video_url: str) -> str:
     video_id = extract_video_id(video_url)
+    # With a cookie jar, list+fetch often works when get_transcript fails (age/region gates).
+    if _youtube_cookies():
+        try:
+            return _fetch_transcript_via_list(video_id)
+        except Exception:
+            pass
     try:
         transcript = YouTubeTranscriptApi.get_transcript(
             video_id, cookies=_youtube_cookies()
@@ -286,10 +377,10 @@ async def fetch_captions(video_url: str) -> str:
                 ) from err
             raise ValueError(
                 "Could not retrieve captions from YouTube for this video. "
-                "It may be restricted by YouTube in your region/session. "
-                "Try opening the video in your browser, then retry. "
-                "If it still fails, set YOUTUBE_COOKIES_PATH to a Netscape cookies.txt export "
-                "from a logged-in browser session."
+                "It may be restricted by your region/session. "
+                "Save a Netscape cookies.txt export while logged into youtube.com as "
+                "`backend/youtube_cookies.txt` (auto-detected), or set YOUTUBE_COOKIES_PATH, "
+                "then restart the backend and retry."
             ) from err
     except Exception as err:
         raw_message = str(err).strip()

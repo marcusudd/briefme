@@ -74,16 +74,16 @@ export function InputList({ sources, onChange, disabled }) {
   };
 
   return (
-    <div className="space-y-3">
-      <label className="block text-sm font-semibold text-slate-300 uppercase tracking-wider">
+    <div className="space-y-2.5">
+      <label className="block text-sm font-semibold text-slate-200 uppercase tracking-wider">
         YouTube, article links, PDF & text files
       </label>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {sources.map((source, index) => (
-          <div key={source.id} className="flex items-start gap-2">
+          <div key={source.id} className="flex items-start gap-1.5">
             {source.kind === "file" && source.file ? (
-              <div className="flex flex-1 items-center justify-between rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3">
+              <div className="flex flex-1 items-center justify-between rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5">
                 <div className="flex min-w-0 items-center gap-2">
                   <FileText className="h-4 w-4 shrink-0 text-sky-400" />
                   <span className="truncate text-sm text-slate-200">{source.file.name}</span>
@@ -93,7 +93,7 @@ export function InputList({ sources, onChange, disabled }) {
                 </span>
               </div>
             ) : source.kind === "text" ? (
-              <div className="flex-1 space-y-2 rounded-xl border border-slate-700 bg-slate-800/60 p-3">
+              <div className="flex-1 space-y-1.5 rounded-xl border border-white/15 bg-white/5 p-2.5">
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
                   <ClipboardPaste className="h-3.5 w-3.5" />
                   Pasted text
@@ -104,7 +104,7 @@ export function InputList({ sources, onChange, disabled }) {
                   placeholder="Paste plain text here (Ctrl/Cmd+V)…"
                   disabled={disabled}
                   rows={6}
-                  className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full resize-y rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 transition focus:border-lime-300/70 focus:outline-none focus:ring-2 focus:ring-lime-300/20 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
             ) : (
@@ -120,7 +120,7 @@ export function InputList({ sources, onChange, disabled }) {
                     onChange={(e) => updateUrl(source.id, e.target.value)}
                     placeholder="YouTube URL, article link, or arXiv id (e.g. 1706.03762v7)…"
                     disabled={disabled}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-800/60 py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full rounded-xl border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 transition focus:border-lime-300/70 focus:outline-none focus:ring-2 focus:ring-lime-300/20 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 <SourceBadge url={source.url ?? ""} />
@@ -131,7 +131,7 @@ export function InputList({ sources, onChange, disabled }) {
               <button
                 onClick={() => removeSource(source.id)}
                 disabled={disabled}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-800/60 text-slate-500 transition hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-slate-400 transition hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label={`Remove source ${index + 1}`}
               >
                 <Trash2 className="h-4 w-4" />
@@ -144,7 +144,7 @@ export function InputList({ sources, onChange, disabled }) {
       <button
         onClick={addSource}
         disabled={disabled}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-800/30 py-3 text-sm font-medium text-slate-400 transition hover:border-violet-500/50 hover:bg-violet-500/5 hover:text-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-lime-300/50 hover:bg-lime-300/10 hover:text-lime-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />
         Add another source
@@ -152,7 +152,7 @@ export function InputList({ sources, onChange, disabled }) {
       <button
         onClick={addTextSource}
         disabled={disabled}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-800/30 py-3 text-sm font-medium text-slate-400 transition hover:border-violet-500/50 hover:bg-violet-500/5 hover:text-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-lime-300/50 hover:bg-lime-300/10 hover:text-lime-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <ClipboardPaste className="h-4 w-4" />
         Add pasted text
@@ -165,7 +165,7 @@ export function InputList({ sources, onChange, disabled }) {
           if (disabled) return;
           addFiles(e.dataTransfer.files);
         }}
-        className="rounded-xl border border-dashed border-slate-700 bg-slate-800/20 p-4 text-center"
+        className="rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-3.5 text-center"
       >
         <div className="mb-2 flex items-center justify-center">
           <Upload className="h-4 w-4 text-slate-400" />
@@ -176,7 +176,7 @@ export function InputList({ sources, onChange, disabled }) {
             type="button"
             disabled={disabled}
             onClick={() => fileInputRef.current?.click()}
-            className="text-violet-400 hover:text-violet-300 disabled:opacity-50"
+            className="text-lime-200 hover:text-lime-100 disabled:opacity-50"
           >
             browse files
           </button>

@@ -35,23 +35,23 @@ export function AudioStyleOptions({ value, onChange, disabled }) {
               disabled={disabled}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 isSelected
-                  ? "border-violet-500 bg-violet-500/10 ring-2 ring-violet-500/20"
-                  : "border-slate-700 bg-slate-800/40 hover:border-slate-600 hover:bg-slate-800/60"
+                  ? "border-lime-300/60 bg-lime-300/10 ring-2 ring-lime-300/20"
+                  : "border-white/15 bg-white/5 hover:border-white/30 hover:bg-white/10"
               }`}
             >
               <div
                 className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                   isSelected
-                    ? "bg-violet-500/20 text-violet-400"
-                    : "bg-slate-700/60 text-slate-400"
+                    ? "bg-lime-300/20 text-lime-200"
+                    : "bg-zinc-800 text-slate-400"
                 }`}
               >
                 <Icon className="h-4 w-4" />
               </div>
               <div>
                 <div
-                  className={`text-sm font-medium ${
-                    isSelected ? "text-violet-300" : "text-slate-300"
+                  className={`text-xs font-semibold uppercase tracking-[0.12em] ${
+                    isSelected ? "text-lime-100" : "text-slate-200"
                   }`}
                 >
                   {option.label}

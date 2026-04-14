@@ -8,6 +8,7 @@ from ..groq_key import load_groq_api_key_required
 SourceType = Literal["youtube", "article", "file"]
 AudioStyle = Literal["summary", "podcast"]
 OutputLength = Literal["min", "med", "max"]
+DetailLevel = Literal["essentials", "detailed", "thorough"]
 
 CHUNK_SIZE = 8000
 DIRECT_THRESHOLD = 10000
@@ -37,30 +38,50 @@ def source_label(source_type: SourceType) -> dict[str, str]:
     }
 
 
-def _length_profile(output_length: OutputLength) -> dict[str, str | int]:
-    if output_length == "min":
-        return {
-            "summary_spoken": "2 to 3 minutes",
-            "podcast_spoken": "2 to 3 minutes of natural back-and-forth dialogue",
-            "max_final": 720,
+def _length_profile(
+    output_length: OutputLength, detail_level: DetailLevel = "detailed"
+) -> dict[str, str | int]:
+    chunk_profiles: dict[DetailLevel, dict[str, str | int]] = {
+        "essentials": {
             "max_chunk": 320,
-            "chunk_instruction": "Be concise; keep only the highest-signal points.",
-        }
-    if output_length == "med":
-        return {
-            "summary_spoken": "about 4 to 6 minutes (aim near 5 minutes)",
-            "podcast_spoken": "about 4 to 6 minutes of dialogue (aim near 5 minutes)",
-            "max_final": 1500,
-            "max_chunk": 500,
-            "chunk_instruction": "Capture important ideas with solid depth; stay organized.",
-        }
-    return {
-        "summary_spoken": "about 8 to 10 minutes",
-        "podcast_spoken": "about 8 to 10 minutes of rich, well-paced dialogue",
-        "max_final": 3600,
-        "max_chunk": 680,
-        "chunk_instruction": "Be thorough; do not omit important ideas from this segment.",
+            "chunk_instruction": (
+                "Keep only the core claims, conclusions, and action items. "
+                "Skip tangents and supporting anecdotes."
+            ),
+        },
+        "detailed": {
+            "max_chunk": 520,
+            "chunk_instruction": (
+                "Capture key points with their supporting evidence, stats, and examples. "
+                "Skip tangents."
+            ),
+        },
+        "thorough": {
+            "max_chunk": 800,
+            "chunk_instruction": (
+                "Be thorough — preserve all points, nuance, caveats, and context. "
+                "Do not omit."
+            ),
+        },
     }
+    final_profiles: dict[OutputLength, dict[str, str | int]] = {
+        "min": {
+            "max_final": 900,
+            "summary_spoken": "2 to 4 minutes",
+            "podcast_spoken": "2 to 4 minutes of natural back-and-forth dialogue",
+        },
+        "med": {
+            "max_final": 1800,
+            "summary_spoken": "about 5 to 7 minutes",
+            "podcast_spoken": "about 5 to 7 minutes of dialogue",
+        },
+        "max": {
+            "max_final": 3600,
+            "summary_spoken": "about 8 to 12 minutes",
+            "podcast_spoken": "about 8 to 12 minutes of rich, well-paced dialogue",
+        },
+    }
+    return {**chunk_profiles[detail_level], **final_profiles[output_length]}
 
 
 def _chat(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
@@ -79,10 +100,10 @@ def summarize_chunk(
     index: int,
     total: int,
     source_type: SourceType,
-    output_length: OutputLength,
+    detail_level: DetailLevel = "detailed",
 ) -> str:
     label = source_label(source_type)["contentLabel"]
-    prof = _length_profile(output_length)
+    prof = _length_profile("med", detail_level)
     chunk_instr = str(prof["chunk_instruction"])
     max_chunk = int(prof["max_chunk"])
     prompt = (
@@ -94,6 +115,22 @@ def summarize_chunk(
     return _chat("llama-3.1-8b-instant", prompt, 0.3, max_chunk)
 
 
+_DETAIL_INSTRUCTIONS: dict[str, str] = {
+    "essentials": (
+        "Cover ONLY the core thesis, key conclusions, and actionable takeaways. "
+        "Skip supporting anecdotes, tangential points, and background context."
+    ),
+    "detailed": (
+        "Cover the key points along with their supporting evidence, statistics, and examples. "
+        "Skip tangential asides but keep anything that strengthens understanding."
+    ),
+    "thorough": (
+        "Cover everything — include nuance, caveats, supporting context, and lesser points. "
+        "Do not omit information that could matter to someone studying this material."
+    ),
+}
+
+
 def _summary_prompt(
     content: str,
     source_type: SourceType,
@@ -101,8 +138,9 @@ def _summary_prompt(
     focus_prompt: str | None,
     title: str | None,
     output_length: OutputLength,
+    detail_level: DetailLevel = "detailed",
 ) -> str:
-    prof = _length_profile(output_length)
+    prof = _length_profile(output_length, detail_level)
     spoken_summary = str(prof["summary_spoken"])
     spoken_podcast = str(prof["podcast_spoken"])
     labels = source_label(source_type)
@@ -114,6 +152,7 @@ def _summary_prompt(
     focus_instruction = (
         f"\n\nSpecial focus instructions: {focus_prompt}" if focus_prompt else ""
     )
+    detail_instruction = _DETAIL_INSTRUCTIONS[detail_level]
     title_context = f'{title_prefix}: "{title}"\n\n' if title else ""
     if source_type == "youtube":
         source_note = (
@@ -130,12 +169,28 @@ def _summary_prompt(
             "\n\nSource shape: article or web page—keep the main thread of the argument when helpful."
         )
 
+    length_guardrail = (
+        f"The maximum length is roughly {spoken_summary} when read aloud (this will become an MP3). "
+        "Do NOT pad or stretch to fill that time — if the material only warrants a shorter summary, make it shorter. "
+        "The goal is to learn efficiently, not to listen to filler. "
+        "However, if covering the material at the requested detail level needs slightly more time, that is fine — "
+        "never cut important information just to hit a time target."
+    )
+
     if audio_style == "podcast":
+        podcast_guardrail = (
+            f"The maximum length is roughly {spoken_podcast} when read aloud (same script will become audio). "
+            "Do NOT pad or stretch to fill that time — if the material only warrants a shorter discussion, keep it shorter. "
+            "The goal is to help the listener learn efficiently, not to fill airtime. "
+            "However, if the material needs slightly more time at the requested detail level, that is fine."
+        )
         return f"""You are writing an engaging two-host podcast script about a {kind} for someone who wants to learn efficiently.
 
 {title_context}{content_label}:
 {content}
 {focus_instruction}{source_note}
+
+Detail level: {detail_instruction}
 
 Write a dialogue between two hosts:
 - Adam (male voice): guides the discussion and explains concepts
@@ -147,11 +202,12 @@ The hosts should be collaborative and supportive.
 - It's good for Jane to ask topic/text-focused questions that Adam explains
 
 Write a dialogue that:
-- Explains the ideas at a depth that fits the requested length
+- Explains the ideas at the detail level described above
 - Sounds natural and conversational
 - Includes follow-up questions and clarifications where helpful
 - Ends with practical takeaways
-- Targets roughly {spoken_podcast} when read aloud (same script will become audio)
+
+{podcast_guardrail}
 
 Format rules:
 - Each spoken line MUST start with either "Adam:" or "Jane:"
@@ -163,13 +219,16 @@ Format rules:
 {content}
 {focus_instruction}{source_note}
 
+Detail level: {detail_instruction}
+
 Create a clear, engaging spoken summary that:
-- Captures the key insights, concepts, and takeaways at a depth suited to the length below
+- Captures information at the detail level described above
 - Is structured for listening (not reading), so avoid bullet points or markdown
 - Uses natural spoken language with smooth transitions
-- Targets roughly {spoken_summary} when read aloud (this will become an MP3)
 - Starts with a brief intro of what the {kind} covers
-- Ends with actionable takeaways (fewer for shorter lengths, more nuance for longer)
+- Ends with actionable takeaways
+
+{length_guardrail}
 
 Write only the spoken summary text, nothing else."""
 
@@ -181,11 +240,13 @@ async def summarize_content(
     focus_prompt: str | None = None,
     title: str | None = None,
     output_length: OutputLength = "med",
+    detail_level: DetailLevel = "detailed",
 ) -> str:
-    max_final = int(_length_profile(output_length)["max_final"])
+    max_final = int(_length_profile(output_length, detail_level)["max_final"])
     if len(content) <= DIRECT_THRESHOLD:
         prompt = _summary_prompt(
-            content, source_type, audio_style, focus_prompt, title, output_length
+            content, source_type, audio_style, focus_prompt, title,
+            output_length, detail_level,
         )
         return _chat("llama-3.3-70b-versatile", prompt, 0.7, max_final)
 
@@ -193,7 +254,7 @@ async def summarize_content(
     chunk_summaries: list[str] = []
     for i, chunk in enumerate(chunks):
         chunk_summaries.append(
-            summarize_chunk(chunk, i, len(chunks), source_type, output_length)
+            summarize_chunk(chunk, i, len(chunks), source_type, detail_level)
         )
         if i < len(chunks) - 1:
             await asyncio.sleep(3)
@@ -201,6 +262,7 @@ async def summarize_content(
     combined_notes = "\n\n".join([f"[Part {i + 1}]\n{s}" for i, s in enumerate(chunk_summaries)])
     await asyncio.sleep(2)
     prompt = _summary_prompt(
-        combined_notes, source_type, audio_style, focus_prompt, title, output_length
+        combined_notes, source_type, audio_style, focus_prompt, title,
+        output_length, detail_level,
     )
     return _chat("llama-3.3-70b-versatile", prompt, 0.7, max_final)

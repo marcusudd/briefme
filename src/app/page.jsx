@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Zap, BookOpen } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Zap, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { InputList } from "@/components/InputList";
 import { FocusPrompt } from "@/components/FocusPrompt";
 import { OutputOptions } from "@/components/OutputOptions";
 import { AudioStyleOptions } from "@/components/AudioStyleOptions";
 import { OutputLengthOptions } from "@/components/OutputLengthOptions";
+import { DetailLevelOptions } from "@/components/DetailLevelOptions";
 import { ProcessingStatus } from "@/components/ProcessingStatus";
 import { DownloadSection } from "@/components/DownloadSection";
+import { NewsSourcePicker } from "@/components/news/NewsSourcePicker";
+import { parseNewsHandoffParam } from "@/lib/newsFeeds";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -34,16 +37,57 @@ function sanitizeFilename(name) {
     .slice(0, 80);
 }
 
+function buildTimestampPrefix() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  return `${yy}${mm}${dd}_${hh}${min}`;
+}
+
+function buildDownloadFilename(summaryTitle) {
+  const shortSummary = sanitizeFilename(summaryTitle || "summary")
+    .replace(/-/g, "_")
+    .slice(0, 48);
+  return `${buildTimestampPrefix()}_${shortSummary || "summary"}.mp3`;
+}
+
+function appendUniqueUrlSources(currentSources, urls) {
+  const existing = new Set(
+    currentSources
+      .filter((source) => source.kind === "url" && (source.url ?? "").trim() !== "")
+      .map((source) => source.url.trim())
+  );
+
+  const additions = [];
+  for (const url of urls) {
+    const trimmed = url.trim();
+    if (!trimmed || existing.has(trimmed)) continue;
+    existing.add(trimmed);
+    additions.push({
+      id: `news-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      kind: "url",
+      url: trimmed,
+    });
+  }
+  return additions.length > 0 ? [...currentSources, ...additions] : currentSources;
+}
+
 export default function Home() {
+  const handoffAppliedRef = useRef(false);
   const [sources, setSources] = useState([{ id: "initial", kind: "url", url: "" }]);
   const [focusPrompt, setFocusPrompt] = useState("");
   const [outputMode, setOutputMode] = useState("combined");
   const [audioStyle, setAudioStyle] = useState("summary");
   const [outputLength, setOutputLength] = useState("med");
+  const [detailLevel, setDetailLevel] = useState("detailed");
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusEntries, setStatusEntries] = useState([]);
   const [downloads, setDownloads] = useState([]);
   const [globalError, setGlobalError] = useState(null);
+  const [newsFeedOpen, setNewsFeedOpen] = useState(false);
 
   const validSources = sources.filter(
     (s) =>
@@ -125,6 +169,7 @@ export default function Home() {
             title: extracted.title,
             audioStyle,
             outputLength,
+            detailLevel,
           });
 
           successful.push({
@@ -140,7 +185,7 @@ export default function Home() {
             newDownloads.push({
               label: extracted.title,
               audioBase64: tts.audioBase64,
-              filename: `${sanitizeFilename(extracted.title)}.mp3`,
+              filename: buildDownloadFilename(extracted.title),
               summary: summarized.summary,
             });
           }
@@ -177,10 +222,9 @@ export default function Home() {
         newDownloads.push({
           label: `Combined: ${successful.length} source${successful.length !== 1 ? "s" : ""}`,
           audioBase64: combinedTts.audioBase64,
-          filename: `combined-${sanitizeFilename(successful.map((s) => s.title).join(" ")).slice(
-            0,
-            50
-          )}.mp3`,
+          filename: buildDownloadFilename(
+            `combined ${successful.length} sources ${successful.map((s) => s.title).join(" ")}`
+          ),
           summary: successful.map((s) => `## ${s.title}\n\n${s.summary}`).join("\n\n---\n\n"),
         });
 
@@ -217,33 +261,90 @@ export default function Home() {
   const hasResults = statusEntries.length > 0;
   const canProcess = validSources.length > 0 && !isProcessing;
 
+  useEffect(() => {
+    if (handoffAppliedRef.current) return;
+    const rawNewsUrls =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("newsUrls")
+        : null;
+    const handoffUrls = parseNewsHandoffParam(rawNewsUrls);
+    handoffAppliedRef.current = true;
+    if (handoffUrls.length === 0) return;
+
+    setSources((prev) => appendUniqueUrlSources(prev, handoffUrls));
+
+    if (typeof window !== "undefined") {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("newsUrls");
+      const query = nextUrl.searchParams.toString();
+      window.history.replaceState({}, "", `${nextUrl.pathname}${query ? `?${query}` : ""}`);
+    }
+  }, []);
+
+  const handleAddNewsUrls = (urls) => {
+    setSources((prev) => appendUniqueUrlSources(prev, urls));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8 sm:py-12">
-      <div className="mx-auto max-w-2xl space-y-8">
+    <div className="min-h-screen bg-transparent px-3 py-6 sm:px-4 sm:py-12">
+      <div className="mx-auto max-w-2xl space-y-6">
         <div className="text-center">
-          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/15 ring-1 ring-violet-500/30">
-            <BookOpen className="h-8 w-8 text-violet-400" />
+          <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-lime-300/15 ring-1 ring-lime-300/35">
+            <BookOpen className="h-7 w-7 text-lime-200" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Learn Faster</h1>
-          <p className="mt-2 text-base text-slate-400">
+          <h1 className="text-3xl font-black uppercase tracking-[0.12em] text-white sm:text-4xl">
+            Learn Faster
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm tracking-wide text-slate-300 sm:text-base">
             YouTube (captions), article links, PDFs, and text files → summarized MP3 you can listen
             to anywhere
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-          <div className="space-y-6 p-6 sm:p-8">
-            <InputList sources={sources} onChange={setSources} disabled={isProcessing} />
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+          <div className="space-y-5 p-5 sm:p-6">
+            <div className="grid gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  Source Inputs
+                </h2>
+                <div className="max-h-[520px] overflow-y-auto pr-1">
+                  <InputList sources={sources} onChange={setSources} disabled={isProcessing} />
+                </div>
+              </div>
+            </div>
 
-            <div className="h-px bg-slate-800" />
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+              <button
+                type="button"
+                onClick={() => setNewsFeedOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left"
+              >
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  AI News Feed
+                </h2>
+                {newsFeedOpen ? (
+                  <ChevronUp className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                )}
+              </button>
+              {newsFeedOpen && (
+                <div className="mt-3">
+                  <NewsSourcePicker onAddUrls={handleAddNewsUrls} disabled={isProcessing} />
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-white/10" />
 
             <FocusPrompt value={focusPrompt} onChange={setFocusPrompt} disabled={isProcessing} />
 
-            <div className="h-px bg-slate-800" />
+            <div className="h-px bg-white/10" />
 
             <OutputOptions value={outputMode} onChange={setOutputMode} disabled={isProcessing} />
 
-            <div className="h-px bg-slate-800" />
+            <div className="h-px bg-white/10" />
 
             <AudioStyleOptions
               value={audioStyle}
@@ -251,7 +352,7 @@ export default function Home() {
               disabled={isProcessing}
             />
 
-            <div className="h-px bg-slate-800" />
+            <div className="h-px bg-white/10" />
 
             <OutputLengthOptions
               value={outputLength}
@@ -259,17 +360,25 @@ export default function Home() {
               disabled={isProcessing}
             />
 
+            <div className="h-px bg-white/10" />
+
+            <DetailLevelOptions
+              value={detailLevel}
+              onChange={setDetailLevel}
+              disabled={isProcessing}
+            />
+
             {globalError && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              <div className="rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 {globalError}
               </div>
             )}
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
               <button
                 onClick={handleProcess}
                 disabled={!canProcess}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 py-3.5 text-base font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:bg-violet-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-lime-300 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-zinc-950 shadow-lg shadow-lime-300/25 transition hover:bg-lime-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
               >
                 <Zap className="h-5 w-5" />
                 {isProcessing
@@ -282,7 +391,7 @@ export default function Home() {
               {hasResults && !isProcessing && (
                 <button
                   onClick={handleReset}
-                  className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-3.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-5 py-3.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:bg-white/10 hover:text-white sm:w-auto"
                 >
                   Reset
                 </button>
@@ -291,14 +400,14 @@ export default function Home() {
           </div>
 
           {(hasResults || downloads.length > 0) && (
-            <div className="space-y-6 border-t border-slate-800 bg-slate-950/50 p-6 sm:p-8">
+            <div className="space-y-5 border-t border-white/10 bg-black/25 p-5 sm:p-6">
               <ProcessingStatus videos={statusEntries} />
               <DownloadSection items={downloads} />
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-slate-600">
+        <p className="text-center text-xs text-slate-500">
           Frontend React JS + Backend FastAPI, powered by Groq AI and Edge TTS
         </p>
       </div>

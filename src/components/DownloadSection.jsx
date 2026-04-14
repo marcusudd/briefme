@@ -1,7 +1,7 @@
 "use client";
 
-import { Download, FileAudio, ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Download, FileAudio, ChevronDown, ChevronUp, Play } from "lucide-react";
+import { useState } from "react";
 
 function downloadMp3(audioBase64, filename) {
   const bytes = Uint8Array.from(atob(audioBase64), (c) => c.charCodeAt(0));
@@ -16,34 +16,18 @@ function downloadMp3(audioBase64, filename) {
 
 export function DownloadSection({ items }) {
   const [expandedSummary, setExpandedSummary] = useState(null);
-  const handleAudioPlay = (currentKey) => {
-    const players = document.querySelectorAll("audio[data-audio-key]");
-    players.forEach((player) => {
-      if (player.dataset.audioKey !== currentKey && !player.paused) {
-        player.pause();
-      }
-    });
+  const handlePlay = (item) => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("briefme:play-audio", {
+        detail: {
+          audioBase64: item.audioBase64,
+          filename: item.filename,
+          label: item.label,
+        },
+      })
+    );
   };
-
-  const audioUrls = useMemo(
-    () =>
-      items.map((item) => ({
-        key: item.filename,
-        url: URL.createObjectURL(
-          new Blob([Uint8Array.from(atob(item.audioBase64), (c) => c.charCodeAt(0))], {
-            type: "audio/mpeg",
-          })
-        ),
-      })),
-    [items]
-  );
-
-  useEffect(
-    () => () => {
-      audioUrls.forEach((entry) => URL.revokeObjectURL(entry.url));
-    },
-    [audioUrls]
-  );
 
   if (items.length === 0) return null;
 
@@ -56,11 +40,11 @@ export function DownloadSection({ items }) {
         {items.map((item) => (
           <div
             key={item.filename}
-            className="overflow-hidden rounded-xl border border-emerald-500/30 bg-emerald-500/5"
+            className="overflow-hidden rounded-xl border border-lime-300/35 bg-lime-300/10"
           >
             <div className="flex items-center gap-3 px-4 py-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
-                <FileAudio className="h-5 w-5 text-emerald-400" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-lime-300/20">
+                <FileAudio className="h-5 w-5 text-lime-100" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-slate-200">{item.label}</div>
@@ -84,7 +68,7 @@ export function DownloadSection({ items }) {
                 )}
                 <button
                   onClick={() => downloadMp3(item.audioBase64, item.filename)}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 active:scale-95"
+                  className="flex items-center gap-2 rounded-lg bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-lime-200 active:scale-95"
                 >
                   <Download className="h-4 w-4" />
                   <span className="hidden sm:inline">Download</span>
@@ -92,19 +76,19 @@ export function DownloadSection({ items }) {
               </div>
             </div>
 
-            <div className="border-t border-emerald-500/20 bg-slate-900/20 px-4 py-3">
-              <audio
-                controls
-                preload="none"
-                className="w-full"
-                data-audio-key={item.filename}
-                onPlay={() => handleAudioPlay(item.filename)}
-                src={audioUrls.find((entry) => entry.key === item.filename)?.url}
-              />
+            <div className="border-t border-lime-300/25 bg-black/20 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => handlePlay(item)}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:bg-white/10"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Play in persistent player
+              </button>
             </div>
 
             {expandedSummary === item.filename && item.summary && (
-              <div className="border-t border-emerald-500/20 bg-slate-900/40 px-4 py-4">
+              <div className="border-t border-lime-300/25 bg-black/35 px-4 py-4">
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
                   {item.summary}
                 </p>

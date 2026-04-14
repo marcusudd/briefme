@@ -1,37 +1,37 @@
 "use client";
 
-import { Timer, Clock, Hourglass } from "lucide-react";
+import { Zap, Layers, BookOpen } from "lucide-react";
 
 const OPTIONS = [
   {
-    id: "min",
-    icon: Timer,
-    label: "Short",
-    description: "Tight summary — about 2–3 min audio",
+    id: "essentials",
+    icon: Zap,
+    label: "Essentials",
+    description: "Core points and conclusions only",
   },
   {
-    id: "med",
-    icon: Clock,
-    label: "Medium",
-    description: "Balanced depth — about 5 min audio",
+    id: "detailed",
+    icon: Layers,
+    label: "Detailed",
+    description: "Key points with evidence and examples",
   },
   {
-    id: "max",
-    icon: Hourglass,
-    label: "Long",
-    description: "Rich detail — about 8–10 min audio",
+    id: "thorough",
+    icon: BookOpen,
+    label: "Thorough",
+    description: "Full coverage — nuance, caveats, context",
   },
 ];
 
-export function OutputLengthOptions({ value, onChange, disabled }) {
+export function DetailLevelOptions({ value, onChange, disabled }) {
   return (
     <div className="space-y-2">
       <label className="block text-sm font-semibold text-slate-300 uppercase tracking-wider">
-        Audio length
+        Detail Level
       </label>
       <p className="text-xs text-slate-500">
-        Maximum duration for the MP3. Won&apos;t pad to fill — if the content is short, the audio
-        will be too.
+        Controls what gets included. Length controls how verbosely it&apos;s
+        explained — detail controls what survives.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {OPTIONS.map((option) => {
@@ -67,7 +67,9 @@ export function OutputLengthOptions({ value, onChange, disabled }) {
                 >
                   {option.label}
                 </div>
-                <div className="mt-0.5 text-xs text-slate-500">{option.description}</div>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  {option.description}
+                </div>
               </div>
             </button>
           );

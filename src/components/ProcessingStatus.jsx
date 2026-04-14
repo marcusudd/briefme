@@ -13,7 +13,7 @@ const STATUS_CONFIG = {
   summarizing: {
     label: "Summarizing with AI...",
     icon: Loader2,
-    className: "text-violet-400",
+    className: "text-lime-200",
     spin: true,
   },
   generating: {
@@ -40,7 +40,7 @@ export function ProcessingStatus({ videos }) {
         Processing Status
       </label>
 
-      <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-800/40">
+      <div className="overflow-hidden rounded-xl border border-white/15 bg-white/5">
         {videos.map((video, index) => {
           const config = STATUS_CONFIG[video.status];
           const Icon = config.icon;
@@ -48,10 +48,10 @@ export function ProcessingStatus({ videos }) {
             <div
               key={video.id}
               className={`flex items-center gap-3 px-4 py-3 ${
-                index < videos.length - 1 ? "border-b border-slate-700/60" : ""
+                index < videos.length - 1 ? "border-b border-white/10" : ""
               }`}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-700/50">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/25">
                 <Video className="h-4 w-4 text-slate-400" />
               </div>
               <div className="min-w-0 flex-1">
@@ -64,7 +64,9 @@ export function ProcessingStatus({ videos }) {
               </div>
               <div className={`flex items-center gap-1.5 shrink-0 ${config.className}`}>
                 <Icon className={`h-4 w-4 ${config.spin ? "animate-spin" : ""}`} />
-                <span className="hidden text-xs sm:block">{config.label}</span>
+                <span className="hidden font-mono text-xs uppercase tracking-[0.08em] sm:block">
+                  {config.label}
+                </span>
               </div>
             </div>
           );

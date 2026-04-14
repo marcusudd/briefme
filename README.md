@@ -54,11 +54,24 @@ Required value:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-Optional (helps with some YouTube videos that require authenticated caption access):
+Optional (when YouTube blocks transcript fetches without a session):
+
+**Easiest:** save Netscape-format cookies as `backend/youtube_cookies.txt` (this path is auto-used and gitignored). Restart the backend.
+
+**Or** set an explicit path in `backend/.env`:
 
 ```bash
-YOUTUBE_COOKIES_PATH=/absolute/path/to/cookies.txt
+YOUTUBE_COOKIES_PATH=/absolute/path/to/youtube_cookies.txt
 ```
+
+**Export `cookies.txt` (Netscape format)**
+
+1. Log in to [youtube.com](https://www.youtube.com) in Chrome or Firefox.
+2. Use a browser extension that exports **Netscape / cookies.txt** for the current site.
+3. Export cookies for `youtube.com` and save the file as `backend/youtube_cookies.txt` in this repo (or any path + `YOUTUBE_COOKIES_PATH`).
+4. Restart the backend and retry the video.
+
+Without a valid cookie file, some videos will still fail (hard blocks). Then use another video or upload a file instead.
 
 ## Run Locally
 
