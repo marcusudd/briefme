@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Learn Faster - YouTube to MP3 Summaries",
+  title: "BriefMe - AI-Summarized Audio",
   description: "Turn videos, links, and files into AI-summarized audio lessons.",
 };
 

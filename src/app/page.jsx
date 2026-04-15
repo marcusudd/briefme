@@ -293,7 +293,7 @@ export default function Home() {
             <BookOpen className="h-7 w-7 text-lime-200" />
           </div>
           <h1 className="text-3xl font-black uppercase tracking-[0.12em] text-white sm:text-4xl">
-            Learn Faster
+            BriefMe
           </h1>
           <p className="mx-auto mt-2 max-w-xl text-sm tracking-wide text-slate-300 sm:text-base">
             YouTube (captions), article links, PDFs, and text files → summarized MP3 you can listen
